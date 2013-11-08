@@ -3,8 +3,8 @@ name = "parallel_tests"
 require "#{name}/version"
 
 Gem::Specification.new name, ParallelTests::VERSION do |s|
-  s.summary = "Run Cucumber in parallel"
-  s.authors = []
+  s.summary = "Run Test::Unit / RSpec / Cucumber in parallel"
+  s.authors = ["Original: Michael Grosser", "Current: Jake Sarate"]
   s.email = ""
   s.homepage = ""
   s.files = `git ls-files`.split("\n")
