@@ -33,23 +33,22 @@ module ParallelTests
       def self.tests_in_groups(tests, num_groups, options={})
         tests = find_tests(tests, options)
 
-        if options[:group_by] == :found
-          Grouper.in_groups(tests, num_groups)
-        else
-          tests = with_runtime_info(tests)
-          Grouper.in_even_groups_by_size(tests, num_groups, options)
-        end
+      if options[:group_by] == :found
+        Grouper.in_groups(tests, num_groups)
+      else
+        tests = with_runtime_info(tests)
+        Grouper.in_even_groups_by_size(tests, num_groups, options)
       end
+    end
 
       def self.execute_command(cmd, process_number, options)
-        r, w = IO.pipe
-        cmd_pid = spawn({'TEST_ENV_NUMBER' => test_env_number(process_number).to_s}, cmd, :out=>w, :err=>:out)
+        puts "starting process #{process_number}..."
+        cmd_pid = spawn(cmd, :out => $stdout, :err=>:out)
         cmd_pid, status = Process.waitpid2(cmd_pid)
-
-        w.close
-        output = fetch_output(r)
-        r.close
+        output = File.open("./log_files/process_log_#{process_number}"){|f| f.read}
+        puts output
         {:stdout => output, :exit_status => status.exitstatus}
+
       end
 
       def self.find_results(test_output)

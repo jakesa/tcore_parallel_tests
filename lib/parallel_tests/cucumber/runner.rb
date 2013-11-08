@@ -4,16 +4,23 @@ module ParallelTests
   module Cucumber
     class Runner < ParallelTests::Test::Runner
       def self.run_tests(test_files, process_number, options)
-        color = ($stdout.tty? ? "#{ParallelTests::PlatformUtils.export_environment_variable('AUTOTEST',1)} ;" : '')#display color when we are in a terminal
+        ENV["AUTOTEST"] = "1" if $stdout.tty?#display color when we are in a terminal
+        #TODO: Add verification that the log_files directory has been created
+        failed_log = options[:rerun_formatter].nil? ? "" : "-f #{options[:rerun_formatter]} --out ./log_files/rerun#{process_number}.txt "
         runtime_logging = " --format ParallelTests::Cucumber::RuntimeLogger --out #{runtime_log}"
+        File.new("./log_files/process_log_#{process_number}")
+        process_logging = "-f pretty --out ./log_files/process_log_#{process_number}"
+
         cmd = [
-          color,
-          executable,
-          (runtime_logging if File.directory?(File.dirname(runtime_log))),
-          cucumber_opts(options[:test_options]),
-          *test_files
+            executable,
+            (runtime_logging if File.directory?(File.dirname(runtime_log))),
+            cucumber_opts(options[:test_options]),
+            failed_log,
+            process_logging,
+        test_files
         ].compact.join(" ")
         execute_command(cmd, process_number, options)
+
       end
 
       def self.executable
@@ -62,6 +69,26 @@ module ParallelTests
         end.compact.join("\n")
       end
 
+      def self.summarize_failures
+        r, w = IO.pipe
+        files = Dir.glob("./log_files/rerun*.txt")
+        files.each do |file|
+          text = IO.read("#{file}")
+          text.split.each {|line| w << line; w << "\n"}
+        end
+        w.close
+        output = r.read
+        r.close
+        output
+      end
+
+      def self.delete_log_files
+        files = Dir.glob("./log_files/*.txt")
+        files.each do |file|
+          File.delete(file)
+        end
+      end
+
       def self.cucumber_opts(given)
         if given =~ /--profile/ or given =~ /(^|\s)-p /
           given
@@ -78,11 +105,36 @@ module ParallelTests
         end
       end
 
+      # This is the method used for the preprocessing of the cucumber files to get the list of all the will actually be executed at runtime.
+      def self.dry_run(cmd)
+        $stdout << "Preprocessing test files"
+        $stdout << "\n"
+        r, w = IO.pipe
+        cmd_pid = spawn(cmd, :out => w, :err=>:out)
+        Process.waitpid2(cmd_pid)
+        w.close
+        output = r.read
+        r.close
+        output
+      end
+
       def self.tests_in_groups(tests, num_groups, options={})
         if options[:group_by] == :steps
           Grouper.by_steps(find_tests(tests, options), num_groups)
         else
-          super
+          #tests = find_tests(tests, options)
+          #JS - This code executes the dry run that is responsible for get the list of actually executed tests.  It then parses the results by line and then into groups
+          tests = dry_run(["cucumber",options[:files] , '--dry-run -f DryRunFormatter', cucumber_opts(options[:test_options])].compact.join(" ")).split("\n")
+          refined_tests =[]
+          tests.delete_at(0) if tests[0].downcase.include?('using')
+          tests.each do |test|
+            refined_tests << test.gsub('\\','/')
+          end
+            $stdout << "The number of scenarios found to be executed: #{refined_tests.count}"
+            $stdout << "\n"
+            Grouper.in_groups(refined_tests, num_groups)
+            #Grouper.in_even_groups_by_size(refined_tests, num_groups, options)
+          #end
         end
       end
     end

@@ -9,7 +9,7 @@ module ParallelTest
 
       num_processes = ParallelTests.determine_number_of_processes(options[:count])
       num_processes = num_processes * (options[:multiply] || 1)
-
+      #num_processes = 4
       if options[:execute]
         execute_shell_command_in_parallel(options[:execute], num_processes, options)
       else
@@ -23,12 +23,13 @@ module ParallelTest
       test_results = nil
       lib = options[:type] || 'test'
       runner = load_runner_for(lib)
-
+      delete_previous_logs
       report_time_taken do
         groups = runner.tests_in_groups(options[:files], num_processes, options)
         report_number_of_tests runner, groups
 
         test_results = Parallel.map(groups, :in_threads => groups.size) do |group|
+
           run_tests(runner, group, groups.index(group), options)
         end
 
@@ -36,6 +37,16 @@ module ParallelTest
       end
 
       abort final_fail_message(lib) if any_test_failed?(test_results)
+    end
+
+    def self.delete_previous_logs
+      rerun_files = []
+      process_files = []
+      rerun_files = Dir.glob("./log_files/rerun*.txt")
+      process_files = Dir.glob("./log_files/process*.txt")
+      files = rerun_files + process_files
+      #JS - TODO: This may require a try/catch block later if we start running into exceptions when deleting files
+      files.each {|file| File.delete(file)}
     end
 
     def self.run_tests(runner, group, process_number, options)
@@ -49,7 +60,14 @@ module ParallelTest
     def self.report_results(runner, test_results)
       results = runner.find_results(test_results.map { |result| result[:stdout] }*"")
       puts ""
-      puts runner.summarize_results(results)
+      summarized_results = runner.summarize_results(results)
+      summarized_failures = runner.summarize_failures
+      puts "Parallel Tests Run Summary:"
+      puts "Failing Scenarios"
+      puts summarized_failures
+      puts "\n"
+      puts "Results:"
+      puts summarized_results
     end
 
     def self.report_number_of_tests(runner, groups)
@@ -97,6 +115,7 @@ TEXT
         opts.on("-e", "--exec [COMMAND]", "execute this code parallel and with ENV['TEST_ENV_NUM']") { |path| options[:execute] = path }
         opts.on("-o", "--test-options '[OPTIONS]'", "execute test commands with those options") { |arg| options[:test_options] = arg }
         opts.on("-t", "--type [TYPE]", "test(default) / rspec / cucumber") { |type| options[:type] = type }
+        opts.on("-r", "--rerun [FORMATTER]", "the formatter to use for rerun output (Cucumber only)") { |formatter| options[:rerun_formatter] = formatter }
         opts.on("--non-parallel", "execute same commands but do not in parallel, needs --exec") { options[:non_parallel] = true }
         opts.on("--no-symlinks", "Do not traverse symbolic links to find test files") { options[:symlinks] = false }
         opts.on("-v", "--version", "Show Version") { puts ParallelTests::VERSION; exit }
@@ -133,7 +152,8 @@ TEXT
       start = Time.now
       yield
       puts ""
-      puts "Took #{Time.now - start} seconds"
+      run_time = ((Time.now - start)/60).to_s.match(/(\d+.\d{2})/)[0]
+      puts "Took #{run_time}m"
     end
 
     def self.final_fail_message(lib)

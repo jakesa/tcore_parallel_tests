@@ -1,6 +1,7 @@
 module ParallelTests
   class Grouper
     def self.in_groups(items, num_groups)
+      num_groups = num_groups.to_i
       groups = Array.new(num_groups){ [] }
 
       until items.empty?
