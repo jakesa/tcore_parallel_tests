@@ -8,7 +8,6 @@ module ParallelTests
         #TODO: Add verification that the log_files directory has been created
         failed_log = options[:rerun_formatter].nil? ? "" : "-f #{options[:rerun_formatter]} --out ./log_files/rerun#{process_number}.txt "
         runtime_logging = " --format ParallelTests::Cucumber::RuntimeLogger --out #{runtime_log}"
-        File.new("./log_files/process_log_#{process_number}")
         process_logging = "-f pretty --out ./log_files/process_log_#{process_number}"
 
         cmd = [
@@ -79,14 +78,10 @@ module ParallelTests
         w.close
         output = r.read
         r.close
+        #delete_log_files
+        #File.delete("./rerun.txt") if File.exist?"./rerun.txt"
+        File.open("./log_files/rerun.txt", "w") {|f| f.write(output)} unless (output.nil? || output == "")
         output
-      end
-
-      def self.delete_log_files
-        files = Dir.glob("./log_files/*.txt")
-        files.each do |file|
-          File.delete(file)
-        end
       end
 
       def self.cucumber_opts(given)

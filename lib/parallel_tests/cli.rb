@@ -5,6 +5,7 @@ require 'win32/dir'
 module ParallelTest
   module CLI
     def self.run(argv)
+      $stdout << "Parallel_tests version 0.8.16\n"
       options = parse_options!(argv)
 
       num_processes = ParallelTests.determine_number_of_processes(options[:count])
@@ -43,9 +44,10 @@ module ParallelTest
       rerun_files = []
       process_files = []
       rerun_files = Dir.glob("./log_files/rerun*.txt")
-      process_files = Dir.glob("./log_files/process*.txt")
+      process_files = Dir.glob("./log_files/process*")
       files = rerun_files + process_files
       #JS - TODO: This may require a try/catch block later if we start running into exceptions when deleting files
+      $stdout << "Deleting previous logs...\n"
       files.each {|file| File.delete(file)}
     end
 
